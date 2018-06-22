@@ -91,3 +91,5 @@ func hashBytes(b []byte) []byte {
 	buf = hash.Sum(buf)
 	return buf
 }
+
+// TODO: Optimized version of Trie
