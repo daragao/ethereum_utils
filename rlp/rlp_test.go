@@ -55,4 +55,18 @@ func TestCompareEncode(t *testing.T) {
 	if  !bytes.Equal(resA, resB) {
 		t.Error("Bad encoding of geth vs my own, on long strings")
 	}
+
+	strArr := [][]string{ {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, {"asdf", "qwer", "zxcv"}, }
+	resA, _ = rlp.EncodeToBytes(strArr)
+	resB = EncodeRLP(strArr)
+	if  !bytes.Equal(resA, resB) {
+		t.Error("Bad encoding of geth vs my own, on array of arrays of strings", resA, resB)
+	}
+
+	strArr1 := []string{"aaa", "bbb", "ccc", "ddd", "eee", "fff", "ggg", "hhh", "iii", "jjj", "kkk", "lll", "mmm", "nnn", "ooo"}
+	resA, _ = rlp.EncodeToBytes(strArr1)
+	resB = EncodeRLP(strArr1)
+	if  !bytes.Equal(resA, resB) {
+		t.Error("Bad encoding of geth vs my own, on array strings\n", "\n", resA, "\n", resB)
+	}
 }

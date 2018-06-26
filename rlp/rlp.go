@@ -27,9 +27,10 @@ func encodeArrayRLP(data interface{}, isFirst bool) []byte {
 			dataLen := s.Len()
 
 			for i := 0; i < dataLen; i++ {
+				//isFirst = s.Index(i).Kind() == reflect.Slice
 				result = append(result[:],encodeArrayRLP(s.Index(i).Interface(),false)[:]...)
 			}
-			if isFirst {
+			//if isFirst {
 				firstByteValue := 0xc0
 
 				firstByte := int2Bytes(uint32(firstByteValue + len(result)))
@@ -39,7 +40,7 @@ func encodeArrayRLP(data interface{}, isFirst bool) []byte {
 					firstByte = append(firstByte, lenByte...)
 				}
 				result = append(firstByte,result[:]...)
-			}
+			//}
 			return result
 		}
 	case reflect.Bool:

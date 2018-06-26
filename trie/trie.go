@@ -7,22 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/sha3"
 )
 
-func EncodeTrie() {
-	str := "dog"
-
-	resA := rlp.EncodeRLP(str)
-	fmt.Println(hex.EncodeToString(resA))
-
-
-	db := make(map[string][][]byte)
-	root := dumbUpdate(db,nil,toNibbleArray([]byte("do")),[]byte("verb"))
-	root = dumbUpdate(db,root,toNibbleArray([]byte("dog")),[]byte("puppy"))
-	//printDB(db)
-	printDumbTree(db, root)
-	
-	fmt.Printf("root: % x\n",root)
-}
-
 func toNibbleArray(bArr []byte) []byte {
 	var nibble []byte
 	for _, b := range bArr {
@@ -92,4 +76,31 @@ func hashBytes(b []byte) []byte {
 	return buf
 }
 
+func compactEncode(partial []byte) []byte {
+	if len(partial) == 0 {
+		return []byte{0}
+	}
+	term := 0
+	// has terminator (0x10)
+	if partial[len(partial)-1] == 0x10 {
+		partial = partial[:len(partial)-1]
+		term = 1
+	}
+	oddLen := len(partial) % 2
+	flags := byte(2 * term + oddLen)
+	if oddLen != 0 {
+		return decodeNibble(append([]byte{flags}, partial...))
+	} else {
+		return decodeNibble(append([]byte{flags, 0}, partial...))
+	}
+}
+
+// convert byte array into nibble only (to save space)
+func decodeNibble(partial []byte) []byte {
+	buf := make([]byte, len(partial)/2)
+	for i := 0; i < len(buf); i += 1 {
+		buf[i] |= partial[2*i] << 4 | partial[(2*i)+1]
+	}
+	return buf
+}
 // TODO: Optimized version of Trie
