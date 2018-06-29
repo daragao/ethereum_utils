@@ -1,6 +1,7 @@
 package trie
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"github.com/clearmatics/ion/go_util/rlp"
@@ -97,9 +98,7 @@ func compactEncode(partial []byte) []byte {
 	return toNibble(result)
 }
 
-// decode compact
 func compactDecode(nibbleArray []byte) []byte {
-	// TODO: the inverse of compactEncode
 	bArray := fromNibble(nibbleArray)
 	res := bArray
 	flag := res[0]
@@ -140,6 +139,9 @@ func fromNibble(partial []byte) []byte {
 	// fmt.Printf("\n")
 	return buf
 }
+func isLeaf(nibble []byte) bool {
+	return (nibble[0] >> 4) > 1
+}
 
 // FIXME: Optimized version of Trie
 func trieUpdate(db map[string][][]byte, node, path, value []byte) []byte {
@@ -152,24 +154,57 @@ func trieUpdate(db map[string][][]byte, node, path, value []byte) []byte {
 	}
 	copy(newNode, curNode)
 
-	// leaf nodes can be converted into extension nodes, and extension nodes can be converted into branch nodes (but not reversable)
-	// leaf node -> extension node -> branch node
-	if node == nil || len(node) == 0 {
-		// LEAF NODE
-		newNode[0] = compactEncode(append(path, byte(0x10))) // TODO: encode like it should be!
-		newNode[1] = value
-	} else if len(node) == 2 {
-		// TODO: EXTENSION NODE
-		// TODO: convert leaf node to extension node if needed
+	if len(newNode) == 2 {
+		// leaf nodes can be converted into extension nodes, and extension nodes can be converted into branch nodes (but not reversable)
+		// leaf node -> extension node -> branch node
+
+		encodedPath := newNode[0]
+		if encodedPath == nil {
+			encodedPath = compactEncode([]byte{16}) // we could directly use 0x20, but this is more clear
+		}
+		decodedPath := compactDecode(encodedPath)
+		if isLeaf(encodedPath) {
+			decodedPath = decodedPath[:len(decodedPath) - 1] // remove terminator
+		}
+
+		if bytes.Equal(decodedPath, path) {
+			if isLeaf(encodedPath) {
+				// update leaf node
+				newNode[0] = compactEncode(append(path,byte(16))) // need to append 0x10 
+				newNode[len(newNode) - 1] = value
+			} else {
+				// extension has the same key has a leaf
+				// THIS IS WRONG
+				newNode = make([][]byte, 16) // a leaf and an extension share the same node so we need to create a branch
+				newNode[len(newNode) - 1] = curNode[2] // new branch value (the old leaf value)
+				newIndex := trieUpdate(db, nil, []byte{}, value) // recursive call for the rest of the path
+				newNode[uint(path[0])] = newIndex // link to new leaf
+			}
+		} else if bytes.Contains(path, decodedPath) {
+			prefix := decodedPath // bytes.TrimPrefix(decodedPath,path) // prefix == decodedPath
+			pathEnd := bytes.TrimPrefix(path,decodedPath)
+
+			newIndex := trieUpdate(db, newNode[1], pathEnd, value) 
+			// create new extension
+			newNode[0] = compactEncode(prefix)
+			newNode[1] = newIndex
+		} else {
+			// TODO: generate branch node
+			// THIS IS WRONG
+				newNode = make([][]byte, 16) // a leaf and an extension share the same node so we need to create a branch
+				newNode[len(newNode) - 1] = curNode[2] // new branch value (the old leaf value)
+				newIndex := trieUpdate(db, nil, []byte{}, value) // recursive call for the rest of the path
+				newNode[uint(path[0])] = newIndex // link to new leaf
+		}
+
 	} else {
-		// TODO: convert extension node to branch node if needed
 		// BRANCH NODE
 		if path == nil || len(path) == 0 {
 			// if the path has ended than this is the value
 			// last element of the array is the value
-			newNode[16] = value
+			newNode[len(newNode) - 1] = value
 		} else {
-			newIndex := dumbUpdate(db, newNode[uint(path[0])], path[1:], value)
+			newIndex := trieUpdate(db, newNode[uint(path[0])], path[1:], value)
 			newNode[uint(path[0])] = newIndex
 		}
 	}
