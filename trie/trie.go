@@ -1,13 +1,12 @@
 package trie
 
 import (
-	"bytes"
 	"encoding/hex"
 	"fmt"
+	"log"
 
 	"github.com/clearmatics/ion/go_util/rlp"
 	"github.com/ethereum/go-ethereum/crypto/sha3"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 func toNibbleArray(bArr []byte) []byte {
@@ -145,65 +144,46 @@ func isLeaf(nibble []byte) bool {
 	return (nibble[0] >> 4) > 1
 }
 
-// FIXME: Optimized version of Trie
-func trieUpdate(db map[string][][]byte, node, path, value []byte) []byte {
-	var curNode [][]byte
-	if node == nil {
-		curNode = make([][]byte, 2)
-	} else {
-		// GET DATA FROM DB
-		curNode = get(db, node)
-	}
-	newNode := make([][]byte, len(curNode))
-	copy(newNode, curNode)
+func updateLeaf(path, value []byte) [][]byte {
+	newNode := make([][]byte, 2)
+	newNode[0] = compactEncode(append(fromNibble(path), byte(0x10)))
+	newNode[1] = value
+	return newNode
+}
 
+func TrieUpdate(db map[string][][]byte, node, path, value []byte) []byte {
+	// only compact encodes path to mkae sure that recursive call account for odd length paths
+	encodedPath := compactEncode(fromNibble(path))
+	return trieUpdate(db, node, encodedPath, value)
+}
+
+// I DELETED IT ALL BECAUSE IT WAS CRAP!
+// FIXME: Optimized version of Trie
+func trieUpdate(db map[string][][]byte, node, encodedPath, value []byte) []byte {
 	// FIXME: please! need to find the right cases to use extension/branch/leaf
 	// XXX: this code is "Seven" crime scene! "What's in the box?!" :(
-	if node == nil {
-		newNode = [][]byte{compactEncode(append(fromNibble(path), byte(0x10))), value} // leaf node
+	var newNode [][]byte
+	curNode := get(db, node)
+
+	pathBytes := compactDecode(encodedPath)
+
+	if curNode == nil {
+		newNode := make([][]byte, 2)
+		newNode[0] = compactEncode(append(encodedPath, byte(0x10)))
+		newNode[1] = value
 	} else if len(curNode) == 2 {
-
-		// handle path and hex prefix
-		encodedPath := newNode[0]
-		if encodedPath == nil {
-			encodedPath = compactEncode([]byte{16}) // we could directly use 0x20, but this is more clear
+		// short node
+		curNodePathBytes := compactDecode(curNode[0])
+		if isLeaf(curNode[0]) {
+			curNodePathBytes = curNode[:len(curNode)-1]
 		}
-		decodedPath := compactDecode(encodedPath)
-		if isLeaf(encodedPath) {
-			decodedPath = decodedPath[:len(decodedPath)-1] // remove terminator
-		}
-
-		if bytes.Equal(decodedPath, path) {
-			if isLeaf(encodedPath) {
-				// replace old leaf value
-				newNode = [][]byte{compactEncode(append(fromNibble(path), byte(0x10))), value} // leaf node
-			} else {
-				// add value to  branch after extension node
-				extensionHash := newNode[1]
-				newIndex := trieUpdate(db, extensionHash, nil, value)
-				newNode[uint(path[0])] = newIndex
-			}
-		} else if bytes.Contains(path, decodedPath) {
-			prefix := decodedPath // bytes.TrimPrefix(decodedPath,path) // prefix == decodedPath
-			pathEnd := bytes.TrimPrefix(path, decodedPath)
-
-			newIndex := trieUpdate(db, newNode[1], pathEnd, value)
-			// create new extension
-			newNode[0] = compactEncode(prefix)
-			newNode[1] = newIndex
-		} else {
-			log.Error("WE SHOULD NOT HAVE REACHED THIS POINT!!!")
+		if bytes.contains(pathBytes, curNodePathBytes) {
+			// WIP!!!!!
 		}
 	} else if len(curNode) == 17 {
-		// BRANCH NODE
-		if path == nil || len(path) == 0 {
-			// if the path has ended than this is the value
-			// last element of the array is the value
-			newNode[len(newNode)-1] = value
-		} else {
-			newIndex := trieUpdate(db, newNode[uint(path[0])], path[1:], value)
-			newNode[uint(path[0])] = newIndex
-		}
+		// long node
+	} else {
+		log.Fatal("ERROR: bad size of node!")
 	}
 
 	// HASH

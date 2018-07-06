@@ -2,8 +2,9 @@ package trie
 
 import (
 	// "encoding/hex"
-	// "github.com/clearmatics/ion/go_util/rlp"
-	"fmt"
+
+	"github.com/clearmatics/ion/go_util/rlp"
+
 	"log"
 	"testing"
 
@@ -73,14 +74,12 @@ func TestCompactEncode(t *testing.T) {
 func TestSingleInsert(t *testing.T) {
 	key := []byte("A")
 	data := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-	expectedRootHash := []byte{0xd2, 0x37, 0x86, 0xfb, 0x4a, 0x01, 0x0d, 0xa3, 0xce, 0x63, 0x9d, 0x66, 0xd5, 0xe9, 0x04, 0xa1, 0x1d, 0xbc, 0x02, 0x74, 0x6d, 0x1c, 0xe2, 0x50, 0x29, 0xe5, 0x32, 0x90, 0xca, 0xbf, 0x28, 0xab}
 
+	// my trie
 	db := make(map[string][][]byte)
-	rootHash := trieUpdate(db, nil, key, data)
-	if !bytes.Equal(expectedRootHash, rootHash) {
-		t.Errorf("~Failed single insert: \n\texpected:\t% 0x \n\tresult:\t\t% 0x\n", expectedRootHash, rootHash)
-	}
+	rootHash := TrieUpdate(db, nil, key, data)
 
+	// go-ethereum trie
 	trieDB := trie.NewDatabase(ethdb.NewMemDatabase())
 	trieObj, _ := trie.New(common.Hash{}, trieDB) // empty trie
 	trieObj.Update(key, data)
@@ -89,16 +88,44 @@ func TestSingleInsert(t *testing.T) {
 		log.Fatalf("commit error: %v", err)
 	}
 
-	dbNode, _ := trieDB.Node(trieDB.Nodes()[0])
-	fmt.Printf("% 0x\n", dbNode)
-	fmt.Printf("% 0x\n", key)
-	fmt.Printf("% 0x\n", data)
+	// compare
+	if !bytes.Equal(rootGoLibHash.Bytes(), rootHash) {
+		t.Errorf("~Failed single insert: \n\texpected:\t% 0x \n\tresult:\t\t% 0x\n", rootGoLibHash.Bytes(), rootHash)
+	}
 
-	fmt.Printf("My root:\t% 0x\nGeth root:\t% 0x\n", rootHash, rootGoLibHash.Bytes())
+	// get a node
+	// dbNode, _ := trieDB.Node(trieDB.Nodes()[0])
+	// fmt.Printf("Node: \t% 0x\n", dbNode)
+	// fmt.Printf("Key: \t% 0x\n", key)
+	// fmt.Printf("Value: \t% 0x\n", data)
+	// fmt.Printf("My root:\t% 0x\nGeth root:\t% 0x\n", rootHash, rootGoLibHash.Bytes())
 
-	it := trie.NewIterator(trieObj.NodeIterator(nil))
-	for it.Next() {
-		fmt.Printf("key: %s\tvalue: %s\n", string(it.Key), string(it.Value))
+	/*
+		// iterate through node values
+			it := trie.NewIterator(trieObj.NodeIterator(nil))
+			for it.Next() {
+				fmt.Printf("key: %s\tvalue: %s\n", string(it.Key), string(it.Value))
+			}
+	*/
+}
+
+func printMyNodes(t *testing.T, tDb map[string][][]byte) {
+	t.Errorf("My Nodes\n")
+	for k, v := range tDb {
+		rlpV := rlp.EncodeRLP(v)
+		t.Errorf("\tNode[%s]: \t% 0x\n", k, rlpV)
+	}
+}
+
+func printGoEthereumNodes(t *testing.T, tDb *trie.Database) {
+	t.Errorf("Go-Ethereum Nodes\n")
+	for idx, node := range tDb.Nodes() {
+		dbNode, err := tDb.Node(node)
+		if err == nil {
+			t.Errorf("\tNode[%x]: \t% 0x\n", node.Bytes(), dbNode)
+		} else {
+			t.Errorf("\tERROR: Node[%0d]: \t%s\n", idx, err)
+		}
 	}
 }
 
@@ -109,8 +136,10 @@ func TestInsert(t *testing.T) {
 		[][]byte{[]byte("ABCDE"), []byte("1")},
 		[][]byte{[]byte("B"), []byte("1")},
 		[][]byte{[]byte("ABCDE"), []byte("1")},
+		[][]byte{[]byte("ABC"), []byte("1")},
 	}
 
+	var rootHash []byte
 	db := make(map[string][][]byte)
 
 	trieDB := trie.NewDatabase(ethdb.NewMemDatabase())
@@ -120,7 +149,7 @@ func TestInsert(t *testing.T) {
 		key := v[0]
 		data := v[1]
 		// my trie
-		rootHash := trieUpdate(db, nil, key, data)
+		rootHash = TrieUpdate(db, rootHash, key, data)
 
 		// go ethereum trie
 		trieObj.Update(key, data)
@@ -131,6 +160,9 @@ func TestInsert(t *testing.T) {
 
 		if !bytes.Equal(rootGoLibHash.Bytes(), rootHash) {
 			t.Errorf("%s:%s\n\tMy Trie:\t % 0x\n\tGo Lib Trie:\t % 0x\n", key, data, rootHash, rootGoLibHash.Bytes())
+			printMyNodes(t, db)
+			printGoEthereumNodes(t, trieDB)
+			t.Fatal()
 		}
 	}
 }
