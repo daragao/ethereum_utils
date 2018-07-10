@@ -23,7 +23,19 @@ func random(min, max int) int {
 	return rand.Intn(max-min) + min
 }
 
-func GetTxTrie(block *types.Block) *trie.Trie {
+func printGoEthereumNodes(tDb *trie.Database) {
+	log.Printf("Go-Ethereum Nodes\n")
+	for idx, node := range tDb.Nodes() {
+		dbNode, err := tDb.Node(node)
+		if err == nil {
+			log.Printf("\tNode[%x]: \t% 0x\n", node.Bytes(), dbNode)
+		} else {
+			log.Printf("\tERROR: Node[%0d]: \t%s\n", idx, err)
+		}
+	}
+}
+
+func getTxTrie(block *types.Block) *trie.Trie {
 	trieDB := trie.NewDatabase(ethdb.NewMemDatabase())
 	trieObj, _ := trie.New(common.Hash{}, trieDB) // empty trie
 	for idx, tx := range block.Transactions() {
@@ -46,6 +58,8 @@ func GetTxTrie(block *types.Block) *trie.Trie {
 
 	fmt.Printf("\n\nBlock number: %d \n\tBlock.TxHash:\t% 0x \n\tTrie.Root:\t% 0x\n",
 		block.Number, block.TxHash().Bytes(), trieObj.Root())
+
+	//printGoEthereumNodes(trieDB)
 
 	return trieObj
 }
@@ -103,7 +117,7 @@ func main() {
 		}
 	*/
 
-	trieObj := GetTxTrie(block)
+	trieObj := getTxTrie(block)
 	txIdx := uint(random(0, len(block.Transactions())))
 	rlpIdx, _ := rlp.EncodeToBytes(txIdx)
 	txRlpBytes := trieObj.Get(rlpIdx)
