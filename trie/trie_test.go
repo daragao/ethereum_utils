@@ -162,6 +162,9 @@ func TestInsert(t *testing.T) {
 			t.Errorf("%s:%s\n\tMy Trie:\t % 0x\n\tGo Lib Trie:\t % 0x\n", key, data, rootHash, rootGoLibHash.Bytes())
 			printMyNodes(t, db)
 			printGoEthereumNodes(t, trieDB)
+			t.Errorf("Flat My Trie: \t% 0x", flattenTrie(db, rootHash))
+			goRootNode, _ := trieDB.Node(rootGoLibHash)
+			t.Errorf("Go-Ethereum Trie: \t% 0x", goRootNode)
 			t.Fatal()
 		}
 	}
