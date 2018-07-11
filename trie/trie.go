@@ -182,11 +182,26 @@ func flattenTrie(db map[string][][]byte, root []byte) []byte {
 	return res
 }
 
-// TrieUpdate public
-func TrieUpdate(db map[string][][]byte, node, path, value []byte) []byte {
+// TUpdate public
+func TUpdate(db map[string][][]byte, node, path, value []byte) []byte {
 	// only compact encodes path to mkae sure that recursive call account for odd length paths
 	encodedPath := compactEncode(fromNibble(path))
-	return trieUpdate(db, node, encodedPath, value)
+	res := trieUpdate(db, node, encodedPath, value)
+	if len(res) < 32 {
+		return hashBytes(res)
+	}
+	return res
+}
+
+func hashAndSave(db map[string][][]byte, data [][]byte) []byte {
+	dataRLP := rlp.EncodeRLP(data)
+	dataHash := hashBytes(dataRLP)
+	put(db, dataHash, data)
+	// only saved as reference if rlp is longer than 32B!!!!!!
+	if len(dataRLP) < 32 {
+		return dataRLP
+	}
+	return dataHash
 }
 
 // I DELETED IT ALL BECAUSE IT WAS CRAP!
@@ -257,8 +272,9 @@ func trieUpdate(db map[string][][]byte, node, encodedPath, value []byte) []byte 
 			if isLeaf(curNode[0]) {
 				newBranch[16] = curNode[1]
 			} else {
-				newNodeHash := hashBytes(rlp.EncodeRLP(newNode))
-				put(db, newNodeHash, newNode)
+				//newNodeHash := hashBytes(rlp.EncodeRLP(newNode))
+				//put(db, newNodeHash, newNode)
+				newNodeHash := hashAndSave(db, newNode)
 				newBranch[idxCurPath] = newNodeHash
 			}
 
@@ -290,8 +306,9 @@ func trieUpdate(db map[string][][]byte, node, encodedPath, value []byte) []byte 
 				idxCurPath := uint(trimmedCurPathBytes[0])
 				newBranch[idxCurPath] = curNode[1]
 			}
-			newBranchHash := hashBytes(rlp.EncodeRLP(newBranch))
-			put(db, newBranchHash, newBranch)
+			// newBranchHash := hashBytes(rlp.EncodeRLP(newBranch))
+			// put(db, newBranchHash, newBranch)
+			newBranchHash := hashAndSave(db, newBranch)
 
 			// create this level replacement extension node
 			newNode[0] = newEncodedCommonPrefix
@@ -310,11 +327,9 @@ func trieUpdate(db map[string][][]byte, node, encodedPath, value []byte) []byte 
 	}
 
 	// HASH
-	buf := hashBytes(rlp.EncodeRLP(newNode))
+	//buf := hashBytes(rlp.EncodeRLP(newNode))
+	//put(db, buf, newNode)
+	newNodeHash := hashAndSave(db, newNode)
 
-	// INSERT DATA TO DB
-	put(db, buf, newNode)
-	log.Printf("%v\n", newNode)
-
-	return buf
+	return newNodeHash
 }

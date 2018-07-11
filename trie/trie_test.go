@@ -77,7 +77,7 @@ func TestSingleInsert(t *testing.T) {
 
 	// my trie
 	db := make(map[string][][]byte)
-	rootHash := TrieUpdate(db, nil, key, data)
+	rootHash := TUpdate(db, nil, key, data)
 
 	// go-ethereum trie
 	trieDB := trie.NewDatabase(ethdb.NewMemDatabase())
@@ -149,7 +149,7 @@ func TestInsert(t *testing.T) {
 		key := v[0]
 		data := v[1]
 		// my trie
-		rootHash = TrieUpdate(db, rootHash, key, data)
+		rootHash = TUpdate(db, rootHash, key, data)
 
 		// go ethereum trie
 		trieObj.Update(key, data)
@@ -162,9 +162,9 @@ func TestInsert(t *testing.T) {
 			t.Errorf("%s:%s\n\tMy Trie:\t % 0x\n\tGo Lib Trie:\t % 0x\n", key, data, rootHash, rootGoLibHash.Bytes())
 			printMyNodes(t, db)
 			printGoEthereumNodes(t, trieDB)
-			t.Errorf("Flat My Trie: \t% 0x", flattenTrie(db, rootHash))
+			t.Errorf("Root Node My Trie: \t\t% 0x", rlp.EncodeRLP(get(db, rootHash)))
 			goRootNode, _ := trieDB.Node(rootGoLibHash)
-			t.Errorf("Go-Ethereum Trie: \t% 0x", goRootNode)
+			t.Errorf("Root Node Go-Ethereum Trie: \t% 0x", goRootNode)
 			t.Fatal()
 		}
 	}
