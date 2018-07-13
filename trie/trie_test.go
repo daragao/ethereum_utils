@@ -76,7 +76,7 @@ func TestSingleInsert(t *testing.T) {
 	data := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 
 	// my trie
-	db := make(map[string][][]byte)
+	db := make(map[string]interface{})
 	rootHash := TUpdate(db, nil, key, data)
 
 	// go-ethereum trie
@@ -109,10 +109,10 @@ func TestSingleInsert(t *testing.T) {
 	*/
 }
 
-func printMyNodes(t *testing.T, tDb map[string][][]byte) {
+func printMyNodes(t *testing.T, tDb map[string]interface{}) {
 	t.Errorf("My Nodes\n")
 	for k, v := range tDb {
-		rlpV := rlp.EncodeRLP(v)
+		rlpV := rlp.Encode(v)
 		t.Errorf("\tNode[%s]: \t% 0x\n", k, rlpV)
 	}
 }
@@ -132,15 +132,15 @@ func printGoEthereumNodes(t *testing.T, tDb *trie.Database) {
 func TestInsert(t *testing.T) {
 	values := [][][]byte{
 		[][]byte{[]byte("A"), []byte("1")},
-		[][]byte{[]byte("ABCD"), []byte("1")},
-		[][]byte{[]byte("ABCDE"), []byte("1")},
-		[][]byte{[]byte("B"), []byte("1")},
-		[][]byte{[]byte("ABCDE"), []byte("1")},
-		[][]byte{[]byte("ABC"), []byte("1")},
+		[][]byte{[]byte("ABCD"), []byte("2")},
+		[][]byte{[]byte("ABCDE"), []byte("3")},
+		[][]byte{[]byte("B"), []byte("4")},
+		[][]byte{[]byte("ABCDE"), []byte("5")},
+		[][]byte{[]byte("ABC"), []byte("6")},
 	}
 
 	var rootHash []byte
-	db := make(map[string][][]byte)
+	db := make(map[string]interface{})
 
 	trieDB := trie.NewDatabase(ethdb.NewMemDatabase())
 	trieObj, _ := trie.New(common.Hash{}, trieDB) // empty trie
@@ -162,7 +162,7 @@ func TestInsert(t *testing.T) {
 			t.Errorf("%s:%s\n\tMy Trie:\t % 0x\n\tGo Lib Trie:\t % 0x\n", key, data, rootHash, rootGoLibHash.Bytes())
 			printMyNodes(t, db)
 			printGoEthereumNodes(t, trieDB)
-			t.Errorf("Root Node My Trie: \t\t% 0x", rlp.EncodeRLP(get(db, rootHash)))
+			t.Errorf("Root Node My Trie: \t\t% 0x", rlp.Encode(get(db, rootHash)))
 			goRootNode, _ := trieDB.Node(rootGoLibHash)
 			t.Errorf("Root Node Go-Ethereum Trie: \t% 0x", goRootNode)
 			t.Fatal()

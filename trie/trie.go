@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"reflect"
 
 	"github.com/clearmatics/ion/go_util/rlp"
 	"github.com/ethereum/go-ethereum/crypto/sha3"
@@ -19,40 +20,42 @@ func toNibbleArray(bArr []byte) []byte {
 	return nibble
 }
 
-func get(db map[string][][]byte, key []byte) [][]byte {
+func get(db map[string]interface{}, key []byte) interface{} {
 	return db[hex.EncodeToString(key)]
 }
-func put(db map[string][][]byte, key []byte, value [][]byte) {
+func put(db map[string]interface{}, key []byte, value interface{}) {
 	db[hex.EncodeToString(key)] = value
 }
-func printDB(db map[string][][]byte) {
+func printDB(db map[string]interface{}) {
 	for k, v := range db {
 		//fmt.Printf("%s: %x\n",k,v)
 		fmt.Printf("%s: [", k)
-		for _, el := range v {
+		for _, el := range v.([][]byte) {
 			fmt.Printf("%x, ", el)
 		}
 		fmt.Println("]")
 	}
 }
-func printDumbTree(db map[string][][]byte, node []byte) {
+func printDumbTree(db map[string]interface{}, node []byte) {
 	curNode := get(db, node)
 	if curNode != nil {
 		fmt.Printf("%x\n", curNode)
 	}
-	for _, el := range curNode {
+	for _, el := range curNode.([][]byte) {
 		printDumbTree(db, el)
 	}
 }
 
-func dumbUpdate(db map[string][][]byte, node, path, value []byte) []byte {
+func dumbUpdate(db map[string]interface{}, node, path, value []byte) []byte {
 	var curNode, newNode [][]byte
 	newNode = make([][]byte, 17)
 	if node == nil {
 		curNode = make([][]byte, 17)
 	} else {
 		// GET DATA FROM DB
-		curNode = get(db, node)
+		if get(db, node) != nil {
+			curNode = get(db, node).([][]byte)
+		}
 	}
 	copy(newNode, curNode)
 	if path == nil || len(path) == 0 {
@@ -64,7 +67,7 @@ func dumbUpdate(db map[string][][]byte, node, path, value []byte) []byte {
 	}
 
 	// HASH
-	buf := hashBytes(rlp.EncodeRLP(newNode))
+	buf := hashBytes(rlp.Encode(newNode))
 
 	// INSERT DATA TO DB
 	put(db, buf, newNode)
@@ -142,8 +145,8 @@ func fromNibble(partial []byte) []byte {
 	// fmt.Printf("\n")
 	return buf
 }
-func isLeaf(nibble []byte) bool {
-	return (nibble[0] >> 4) > 1
+func isLeaf(nibble interface{}) bool {
+	return (nibble.([]byte)[0] >> 4) > 1
 }
 
 func flattenArray(in [][]byte) (out []byte) {
@@ -157,67 +160,50 @@ func flattenArray(in [][]byte) (out []byte) {
 	return
 }
 
-func flattenTrie(db map[string][][]byte, root []byte) []byte {
-	var res []byte
-	node := get(db, root)
-	switch len(node) {
-	case 2:
-		if isLeaf(node[0]) {
-			res = rlp.EncodeRLP(node)
-		} else {
-			res = rlp.EncodeRLP([][]byte{node[0], flattenTrie(db, node[1])})
-		}
-	case 17:
-		var val [][]byte
-		for i := 0; i < 16; i++ {
-			if node[i] != nil {
-				val = append(val, flattenTrie(db, node[i]))
-			} else {
-				val = append(val, nil)
-			}
-		}
-		val = append(val, node[16])
-		res = rlp.EncodeRLP(val)
-	}
-	return res
-}
-
 // TUpdate public
-func TUpdate(db map[string][][]byte, node, path, value []byte) []byte {
+func TUpdate(db map[string]interface{}, node, path, value []byte) []byte {
 	// only compact encodes path to mkae sure that recursive call account for odd length paths
 	encodedPath := compactEncode(fromNibble(path))
 	res := trieUpdate(db, node, encodedPath, value)
-	if len(res) < 32 {
-		return hashBytes(res)
+
+	resRef := reflect.ValueOf(res)
+
+	if resRef.Len() < 32 {
+		res = hashBytes(rlp.Encode(res))
 	}
-	return res
+	return reflect.ValueOf(res).Bytes()
 }
 
-func hashAndSave(db map[string][][]byte, data [][]byte) []byte {
-	dataRLP := rlp.EncodeRLP(data)
+func hashAndSave(db map[string]interface{}, data interface{}) interface{} {
+	dataRLP := rlp.Encode(data)
 	dataHash := hashBytes(dataRLP)
 	put(db, dataHash, data)
 	// only saved as reference if rlp is longer than 32B!!!!!!
 	if len(dataRLP) < 32 {
-		return dataRLP
+		//return dataRLP
+		return data
 	}
 	return dataHash
 }
 
+// FIXME: need to make the array of array an interface type that way I can have multidimension arrays
 // I DELETED IT ALL BECAUSE IT WAS CRAP!
 // FIXME: Optimized version of Trie
-func trieUpdate(db map[string][][]byte, node, encodedPath, value []byte) []byte {
+func trieUpdate(db map[string]interface{}, node, encodedPath, value []byte) interface{} {
 	// FIXME: please! need to find the right cases to use extension/branch/leaf
 	// XXX: this code is "Seven" crime scene! "What's in the box?!" :(
-	var newNode [][]byte
-	curNode := get(db, node)
+	var curNode, newNode []interface{}
+
+	if get(db, node) != nil {
+		curNode = get(db, node).([]interface{})
+	}
 
 	pathBytes := compactDecode(encodedPath)
 
 	if curNode == nil {
-		newNode = make([][]byte, 2)
+		newNode = make([]interface{}, 2)
 	} else {
-		newNode = make([][]byte, len(curNode))
+		newNode = make([]interface{}, len(curNode))
 	}
 	copy(newNode, curNode)
 
@@ -226,7 +212,7 @@ func trieUpdate(db map[string][][]byte, node, encodedPath, value []byte) []byte 
 		newNode[0] = compactEncode(append(pathBytes, byte(0x10)))
 		newNode[1] = value
 	case 2:
-		curNodePathBytes := compactDecode(curNode[0])
+		curNodePathBytes := compactDecode(curNode[0].([]byte))
 		if isLeaf(curNode[0]) {
 			curNodePathBytes = curNodePathBytes[:len(curNodePathBytes)-1]
 		}
@@ -246,7 +232,7 @@ func trieUpdate(db map[string][][]byte, node, encodedPath, value []byte) []byte 
 			// log.Fatalf("NOT IMPLEMENTED: no common prefix!\n\tNew Path: \t% 0x\n\tOld Path: \t% 0x\n", pathBytes, curNodePathBytes)
 
 			// create new lower level branch node
-			newBranch := make([][]byte, 17)
+			newBranch := make([]interface{}, 17)
 
 			// if len(trimmedPathBytes) == 0 { newBranch[16] = value }
 			if len(curNodePathBytes) == 0 || len(pathBytes) == 0 {
@@ -295,7 +281,7 @@ func trieUpdate(db map[string][][]byte, node, encodedPath, value []byte) []byte 
 			idxPath := uint(trimmedPathBytes[0])
 
 			// create lower level branch node
-			newBranch := make([][]byte, 17)
+			newBranch := make([]interface{}, 17)
 			// add new path branches
 			lowerLevelNodeHashA := trieUpdate(db, nil, newEncodedPath, value)
 			newBranch[idxPath] = lowerLevelNodeHashA // this creates a leaf
@@ -303,8 +289,14 @@ func trieUpdate(db map[string][][]byte, node, encodedPath, value []byte) []byte 
 			if isLeaf(curNode[0]) {
 				newBranch[16] = curNode[1]
 			} else {
-				idxCurPath := uint(trimmedCurPathBytes[0])
-				newBranch[idxCurPath] = curNode[1]
+				// FIXME
+				if len(trimmedCurPathBytes) == 0 {
+					//log.Fatalf("NOT IMPLEMENTED: trimmeCurPAth == 0!\n\tNew Path: \t% 0x\n\tOld Path: \t% 0x\n", pathBytes, curNodePathBytes)
+					newBranch[16] = curNode[1]
+				} else {
+					idxCurPath := uint(trimmedCurPathBytes[0])
+					newBranch[idxCurPath] = curNode[1]
+				}
 			}
 			// newBranchHash := hashBytes(rlp.EncodeRLP(newBranch))
 			// put(db, newBranchHash, newBranch)
@@ -320,7 +312,7 @@ func trieUpdate(db map[string][][]byte, node, encodedPath, value []byte) []byte 
 		} else {
 			idx := uint(pathBytes[0])
 			newPath := compactEncode(pathBytes[:len(pathBytes)-1])
-			newNode[idx] = trieUpdate(db, curNode[idx], newPath, value)
+			newNode[idx] = trieUpdate(db, curNode[idx].([]byte), newPath, value)
 		}
 	default:
 		log.Fatal("ERROR: bad size of node!")

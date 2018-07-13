@@ -1,21 +1,24 @@
 package rlp
 
 import (
-	"fmt"
-	"encoding/hex"
-	"encoding/binary"
 	"bytes"
+	"encoding/binary"
+	"encoding/hex"
+	"fmt"
 	// "strings"
 	"reflect"
 )
 
-func EncodeRLP(data interface{}) []byte {
-	return encodeArrayRLP(data,true)
+func Encode(data interface{}) []byte {
+	return encodeArrayRLP(data, true)
 }
 
 func encodeArrayRLP(data interface{}, isFirst bool) []byte {
 	var result []byte
 
+	if data == nil {
+		return []byte{0x80}
+	}
 	rt := reflect.TypeOf(data)
 	switch rt.Kind() {
 	case reflect.Slice:
@@ -28,23 +31,23 @@ func encodeArrayRLP(data interface{}, isFirst bool) []byte {
 
 			for i := 0; i < dataLen; i++ {
 				//isFirst = s.Index(i).Kind() == reflect.Slice
-				result = append(result[:],encodeArrayRLP(s.Index(i).Interface(),false)[:]...)
+				result = append(result[:], encodeArrayRLP(s.Index(i).Interface(), false)[:]...)
 			}
 			//if isFirst {
-				firstByteValue := 0xc0
+			firstByteValue := 0xc0
 
-				firstByte := int2Bytes(uint32(firstByteValue + len(result)))
-				if len(result) > 55 {
-					lenByte := int2Bytes(uint32(len(result)))
-					firstByte = int2Bytes(uint32(firstByteValue + 55 + len(lenByte)))
-					firstByte = append(firstByte, lenByte...)
-				}
-				result = append(firstByte,result[:]...)
+			firstByte := int2Bytes(uint32(firstByteValue + len(result)))
+			if len(result) > 55 {
+				lenByte := int2Bytes(uint32(len(result)))
+				firstByte = int2Bytes(uint32(firstByteValue + 55 + len(lenByte)))
+				firstByte = append(firstByte, lenByte...)
+			}
+			result = append(firstByte, result[:]...)
 			//}
 			return result
 		}
 	case reflect.Bool:
-		boolData := reflect.ValueOf(data).Bool() 
+		boolData := reflect.ValueOf(data).Bool()
 		if boolData {
 			return []byte{0x01}
 		} else {
@@ -57,7 +60,7 @@ func encodeArrayRLP(data interface{}, isFirst bool) []byte {
 		return encodeBytesRLP(int2Bytes(b))
 	default:
 		b := reflect.ValueOf(data).Bytes()
-		fmt.Println("UNKNOWN TYPE!",hex.EncodeToString(b),data,rt.Kind())
+		fmt.Println("UNKNOWN TYPE!", hex.EncodeToString(b), data, rt.Kind())
 		return encodeBytesRLP(b)
 	}
 
@@ -70,15 +73,15 @@ func encodeBytesRLP(data []byte) []byte {
 		if data[0] <= 0x7f {
 			return []byte{data[0]}
 		} else {
-			return []byte{0x81,data[0]}
+			return []byte{0x81, data[0]}
 		}
 	}
 	if dataLen > 1 && dataLen < 56 {
-		return append([]byte{byte(0x80+dataLen)}[:],data[:]...)
+		return append([]byte{byte(0x80 + dataLen)}[:], data[:]...)
 	}
 	if dataLen > 55 {
 		bs := int2Bytes(uint32(dataLen))
-		return append(append([]byte{byte(0xb7+len(bs))}[:],bs[:]...),data[:]...)
+		return append(append([]byte{byte(0xb7 + len(bs))}[:], bs[:]...), data[:]...)
 	}
 	//if dataLen == 0 {
 	return []byte{0x80}
@@ -114,7 +117,6 @@ func main() {
 	fmt.Println(hex.EncodeToString(encodeRLP([]string{"hello","world",data})))
 }
 */
-
 
 // TODO: write tests for the RLP encoder
 // TODO: write RLP decoder
