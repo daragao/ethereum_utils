@@ -289,7 +289,6 @@ func trieUpdate(db map[string]interface{}, node, encodedPath, value []byte) inte
 			if isLeaf(curNode[0]) {
 				newBranch[16] = curNode[1]
 			} else {
-				// FIXME
 				if len(trimmedCurPathBytes) == 0 {
 					//log.Fatalf("NOT IMPLEMENTED: trimmeCurPAth == 0!\n\tNew Path: \t% 0x\n\tOld Path: \t% 0x\n", pathBytes, curNodePathBytes)
 					newBranch[16] = curNode[1]

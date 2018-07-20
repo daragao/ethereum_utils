@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math/big"
 	"math/rand"
 	"time"
 
@@ -44,20 +45,52 @@ func getTxTrie(block *types.Block) *trie.Trie {
 		rlpTransaction, _ := rlp.EncodeToBytes(tx) // rlp encode transaction
 
 		trieObj.Update(rlpIdx, rlpTransaction) // update trie with the rlp encode index and the rlp encoded transaction
-		root, err := trieObj.Commit(nil)       // commit to database (which in this case is stored in memory)
+		_, err := trieObj.Commit(nil)          // commit to database (which in this case is stored in memory)
 		if err != nil {
 			log.Fatalf("commit error: %v", err)
 		}
 
-		txRlpHash := crypto.Keccak256Hash(rlpTransaction)
+		// txRlpHash := crypto.Keccak256Hash(rlpTransaction)
 
-		fmt.Printf("TxHash[%d]: \t% 0x\n\tHash(RLP(Tx)): \t% 0x\n\tTrieRoot: \t% 0x\n",
-			idx, tx.Hash().Bytes(), txRlpHash.Bytes(), root.Bytes())
+		//fmt.Printf("TxHash[%d]: \t% 0x\n\tHash(RLP(Tx)): \t% 0x\n\tTrieRoot: \t% 0x\n", idx, tx.Hash().Bytes(), txRlpHash.Bytes(), root.Bytes())
 		//fmt.Printf("\n%#v\n% #v\n% 0x\n\n", trieObj, trieObj, root)
 	}
 
-	fmt.Printf("\n\nBlock number: %d \n\tBlock.TxHash:\t% 0x \n\tTrie.Root:\t% 0x\n",
-		block.Number, block.TxHash().Bytes(), trieObj.Root())
+	fmt.Printf("\n\nBlock number: %d \n\tBlock.TxHash:\t% 0x \n\tTransactions Trie.Root:\t% 0x\n",
+		block.Number(), block.TxHash().Bytes(), trieObj.Root())
+
+	//printGoEthereumNodes(trieDB)
+
+	return trieObj
+}
+
+func getReceiptTrie(ec *ethclient.Client, block *types.Block) *trie.Trie {
+	trieDB := trie.NewDatabase(ethdb.NewMemDatabase())
+	trieObj, _ := trie.New(common.Hash{}, trieDB) // empty trie
+	for idx, tx := range block.Transactions() {
+
+		rlpIdx, _ := rlp.EncodeToBytes(uint(idx)) // rlp encode index of transaction
+
+		receipt, err := ec.TransactionReceipt(context.Background(), tx.Hash())
+		if err != nil {
+			log.Fatal("TransactionReceipt ERROR:", err)
+		}
+
+		rlpReceipt, _ := rlp.EncodeToBytes(receipt) // rlp encode receipt
+
+		trieObj.Update(rlpIdx, rlpReceipt) // update trie with the rlp encode index and the rlp encoded receipt
+		root, err := trieObj.Commit(nil)   // commit to database (which in this case is stored in memory)
+		if err != nil {
+			log.Fatalf("commit error: %v", err)
+		}
+
+		fmt.Printf("Receipt leaf (#tx 0x%0x):\n\tKey:\t0x%0x\n\tValue:\t0x%0x\n\tTrie Root:\t0x%0x\n", tx.Hash(), rlpIdx, rlpReceipt, root)
+		//receiptRlpHash := crypto.Keccak256Hash(rlpReceipt)
+
+	}
+
+	fmt.Printf("\n\nBlock number: %d \n\tBlock.ReceiptHash:\t% 0x \n\tReceipts Trie.Root:\t% 0x\n",
+		block.Number(), block.ReceiptHash().Bytes(), trieObj.Root())
 
 	//printGoEthereumNodes(trieDB)
 
@@ -65,7 +98,7 @@ func getTxTrie(block *types.Block) *trie.Trie {
 }
 
 func main() {
-	client, err := ethclient.Dial("https://mainnet.infura.io")
+	client, err := ethclient.Dial("https://rinkeby.infura.io")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -73,9 +106,9 @@ func main() {
 	fmt.Println("we have a connection")
 	//_ = client // we'll use this in the upcoming sections
 
-	// blockNumber := big.NewInt(7295200)
+	blockNumber := big.NewInt(2657422)
 
-	header, err := client.HeaderByNumber(context.Background(), nil)
+	header, err := client.HeaderByNumber(context.Background(), blockNumber)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -123,8 +156,23 @@ func main() {
 	txRlpBytes := trieObj.Get(rlpIdx)
 	txRlpHash := crypto.Keccak256Hash(txRlpBytes).Bytes()
 
-	fmt.Printf("Retrieval from Trie == Block TxHash\n\tHash(Trie.Get(%d)): \t% 0x\n\tBlock.TxHash[%d]: \t% 0x\n",
+	receiptTrie := getReceiptTrie(client, block)
+
+	fmt.Printf("RANDOM Retrieval from Trie == Block TxHash\n\tHash(Trie.Get(%d)): \t% 0x\n\tBlock.TxHash[%d]: \t% 0x\n",
 		txIdx, txRlpHash, txIdx, block.Transactions()[txIdx].Hash().Bytes())
+
+	proof := ethdb.NewMemDatabase()
+	key := []byte{19}
+	err = receiptTrie.Prove(key, 0, proof)
+	if err != nil {
+		log.Fatal("ERROR failed to create proof")
+	}
+	fmt.Printf("\nProof map for tx receipt with index 0x%0x (#tx 0x%0x)\n", key, block.Transactions()[19].Hash().Bytes())
+	for _, key := range proof.Keys() {
+		val, _ := proof.Get(key)
+		fmt.Printf("\tkey (sha3(value)): 0x%0x\n\t value: 0x%0x\n\t\t\t===================================================\n", key, val)
+	}
+
 	/*
 		data := []byte("hello")
 		hash := crypto.Keccak256Hash(data)

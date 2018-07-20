@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
+	goRLP "github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
@@ -113,7 +114,7 @@ func printMyNodes(t *testing.T, tDb map[string]interface{}) {
 	t.Errorf("My Nodes\n")
 	for k, v := range tDb {
 		rlpV := rlp.Encode(v)
-		t.Errorf("\tNode[%s]: \t% 0x\n", k, rlpV)
+		t.Errorf("\tNode[%s]: \t% 0x\n \t\t\t%v\n", k, rlpV, v)
 	}
 }
 
@@ -122,7 +123,9 @@ func printGoEthereumNodes(t *testing.T, tDb *trie.Database) {
 	for idx, node := range tDb.Nodes() {
 		dbNode, err := tDb.Node(node)
 		if err == nil {
-			t.Errorf("\tNode[%x]: \t% 0x\n", node.Bytes(), dbNode)
+			var slice interface{}
+			goRLP.DecodeBytes(dbNode, &slice)
+			t.Errorf("\tNode[%x]: \t% 0x\n \t\t\t%v\n", node.Bytes(), dbNode, slice)
 		} else {
 			t.Errorf("\tERROR: Node[%0d]: \t%s\n", idx, err)
 		}
