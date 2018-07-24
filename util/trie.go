@@ -78,3 +78,34 @@ func generateTrie(paths [][]byte, values [][]byte) *trie.Trie {
 
 	return trieObj
 }
+
+// Proof creates an array of the proof pathj ordered
+func Proof(trie *trie.Trie, path []byte) []byte {
+	proof := generateProof(trie, path)
+	proofRLP, err := rlp.EncodeToBytes(proof)
+	if err != nil {
+		log.Fatal("ERROR encoding proof: ", err)
+	}
+	return proofRLP
+}
+
+func generateProof(trie *trie.Trie, path []byte) []interface{} {
+	proof := ethdb.NewMemDatabase()
+	err := trie.Prove(path, 0, proof)
+	if err != nil {
+		log.Fatal("ERROR failed to create proof")
+	}
+
+	var proofArr []interface{}
+	for nodeIt := trie.NodeIterator(nil); nodeIt.Next(true); {
+		if val, err := proof.Get(nodeIt.Hash().Bytes()); val != nil && err == nil {
+			var decodedVal interface{}
+			err = rlp.DecodeBytes(val, &decodedVal)
+			if err != nil {
+				log.Fatalf("ERROR(%s) failed decoding RLP: 0x%0x\n", err, val)
+			}
+			proofArr = append(proofArr, decodedVal)
+		}
+	}
+	return proofArr
+}

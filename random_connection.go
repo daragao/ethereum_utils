@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"math/big"
 	"math/rand"
@@ -11,7 +10,6 @@ import (
 	// "github.com/ethereum/go-ethereum/crypto"
 	// "github.com/ethereum/go-ethereum/ethclient"
 	"github.com/clearmatics/ion/go_util/util"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
@@ -35,37 +33,28 @@ func printGoEthereumNodes(tDb *trie.Database) {
 func main() {
 	client := util.Client("https://rinkeby.infura.io")
 
-	fmt.Println("we have a connection")
-	//_ = client // we'll use this in the upcoming sections
-
+	// get a block
 	blockNumber := big.NewInt(2657422)
-
-	header, err := client.HeaderByNumber(context.Background(), blockNumber)
+	block, err := client.BlockByNumber(context.Background(), blockNumber)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	block, err := client.BlockByNumber(context.Background(), header.Number)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// generate Transaction Trie
+	txArr := block.Transactions()
+	txTrie := util.TxTrie(txArr)
 
-	// trieObj := util.TxTrie(block.Transactions())
+	// generate RLP Proof of Receipt
+	txKey := []byte{19}
+	txProofArr := util.Proof(txTrie, txKey)
+	log.Printf("RLP Proof of Transaction with index %d:\n\t%0x\n", txKey, txProofArr)
 
+	// generate Receipt Trie
 	receiptArr := util.GetBlockTxReceipts(client, block)
 	receiptTrie := util.ReceiptTrie(receiptArr)
 
-	// TODO: need to order the proof into and RLP
-	proof := ethdb.NewMemDatabase()
-	key := []byte{19}
-	err = receiptTrie.Prove(key, 0, proof)
-	if err != nil {
-		log.Fatal("ERROR failed to create proof")
-	}
-
-	fmt.Printf("\nProof map for tx receipt with index 0x%0x (#tx 0x%0x)\n", key, block.Transactions()[19].Hash().Bytes())
-	for _, key := range proof.Keys() {
-		val, _ := proof.Get(key)
-		fmt.Printf("\tkey (sha3(value)): 0x%0x\n\t value: 0x%0x\n\t\t\t===================================================\n", key, val)
-	}
+	// generate RLP Proof of Receipt
+	receiptKey := []byte{19}
+	receiptProofArr := util.Proof(receiptTrie, receiptKey)
+	log.Printf("RLP Proof of receipt with index %d:\n\t%0x\n", receiptKey, receiptProofArr)
 }
