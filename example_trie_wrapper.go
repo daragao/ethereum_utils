@@ -4,31 +4,9 @@ import (
 	"context"
 	"log"
 	"math/big"
-	"math/rand"
-	"time"
 
-	// "github.com/ethereum/go-ethereum/crypto"
-	// "github.com/ethereum/go-ethereum/ethclient"
 	"github.com/clearmatics/ion/go_util/util"
-	"github.com/ethereum/go-ethereum/trie"
 )
-
-func random(min, max int) int {
-	rand.Seed(time.Now().Unix())
-	return rand.Intn(max-min) + min
-}
-
-func printGoEthereumNodes(tDb *trie.Database) {
-	log.Printf("Go-Ethereum Nodes\n")
-	for idx, node := range tDb.Nodes() {
-		dbNode, err := tDb.Node(node)
-		if err == nil {
-			log.Printf("\tNode[%x]: \t% 0x\n", node.Bytes(), dbNode)
-		} else {
-			log.Printf("\tERROR: Node[%0d]: \t%s\n", idx, err)
-		}
-	}
-}
 
 func main() {
 	client := util.Client("https://rinkeby.infura.io")
