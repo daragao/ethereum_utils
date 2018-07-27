@@ -2,7 +2,6 @@ package trie
 
 import (
 	// "encoding/hex"
-	// "github.com/clearmatics/ion/go_util/rlp"
 	"fmt"
 	"log"
 	"testing"
